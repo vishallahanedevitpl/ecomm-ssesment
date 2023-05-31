@@ -12,6 +12,7 @@
 /apis/node_modules
 /apis/.vscode
 /apis/package-lock.json
+/apis/uploads
 
 
 /apis/npm-debug.log*

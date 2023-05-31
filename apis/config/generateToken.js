@@ -1,9 +1,14 @@
-import jwt from "jsonwebtoken";
+const jwt = require("jsonwebtoken");
 
-export const genrateToken = (email) => {
+const genrateToken = (email) => {
   return jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: "1d" });
 };
 
-export const genrateEmailVerifucationToken = (email) => {
+const genrateEmailVerificationToken = (email) => {
   return jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: "1h" });
+};
+
+module.exports = {
+  genrateToken,
+  genrateEmailVerificationToken,
 };

@@ -1,27 +1,19 @@
+import "./assets/css/bootstrap.min.css";
+import "./assets/css/style.css";
+import "./assets/css/custom.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
-import DashboardPage from "./pages/dashboard";
-import RegisterPage from "./pages/register";
-import LoginPage from "./pages/login";
-import ProfilePage from "./pages/profile";
-import CategoryAddPage from "./pages/category/add";
-import CategoryListPage from "./pages/category/list";
-import ProductListPage from "./pages/product/list";
+import { useLocation, useNavigate } from "react-router-dom";
+
+import { history } from "./helpers/common";
+import Routing from "./Routing";
 
 function App() {
+  history.navigate = useNavigate();
+  history.location = useLocation();
+
   return (
     <>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/category" element={<CategoryListPage />} />
-          <Route path="/category/add" element={<CategoryAddPage />} />
-          <Route path="/product" element={<ProductListPage />} />
-        </Routes>
-      </BrowserRouter>
+      <Routing />
     </>
   );
 }

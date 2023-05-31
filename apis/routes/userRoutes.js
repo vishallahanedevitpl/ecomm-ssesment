@@ -1,23 +1,37 @@
-import { Router } from "express";
-import {
+const { Router } = require("express");
+const {
   emailVerification,
   login,
   passwordResetRequest,
   register,
   resetPassword,
-  uploadProfilePic,
   verifyEmail,
-} from "../controllers/userController";
-import protect from "../middlewares/authMiddleware";
+  updateUserProfilePic,
+  updateUserProfileDetails,
+  changePassword,
+  listUsers,
+  getSingleUser,
+  updateUserProfileDetailsByAdmin,
+} = require("../controllers/userController");
+const protect = require("../middlewares/authMiddleware");
 
 const userRouter = Router();
-
+//prefix => /user
 userRouter.post("/register", register);
 userRouter.post("/login", login);
 userRouter.post("/sendVerification", emailVerification);
 userRouter.get("/verifyEmail/:token", verifyEmail);
 userRouter.post("/passwordResetLink", passwordResetRequest);
 userRouter.post("/resetPassword", resetPassword);
-userRouter.post("/uploadProfilePic", protect, uploadProfilePic);
+userRouter.patch("/updateProfilePic", protect, updateUserProfilePic);
+userRouter.patch("/updateProfileDetails", protect, updateUserProfileDetails);
+userRouter.patch("/changePassword", protect, changePassword);
+userRouter.get("/list", protect, listUsers);
+userRouter.get("/singleUser/:id", protect, getSingleUser);
+userRouter.patch(
+  "/updateProfileDetailsByAdmin/:id",
+  protect,
+  updateUserProfileDetailsByAdmin
+);
 
-export default userRouter;
+module.exports = userRouter;

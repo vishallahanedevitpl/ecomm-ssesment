@@ -1,42 +1,34 @@
-import { DataTypes } from "sequelize";
-import sequelize from "../config/dbConfig";
-import Category from "./categoryModel";
-import User from "./userModel";
-
-const Product = sequelize.define(
-  "Product",
-  {
-    productName: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    isActive: {
-      type: DataTypes.BOOLEAN,
-      allowNull: false,
-      defaultValue: 1,
-    },
-    productDescription: {
-      type: DataTypes.TEXT,
-      allowNull: false,
-    },
-    categoryId: {
-      type: DataTypes.INTEGER,
-      references: {
-        model: Category,
-        key: "id",
+module.exports = (sequelize, DataTypes) => {
+  const Product = sequelize.define(
+    "product",
+    {
+      productName: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
+      isActive: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: 1,
+      },
+      categoryId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
+      subCategoryId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
+      productFor: {
+        type: DataTypes.JSON,
+        allowNull: true,
+      },
+      userId: {
+        type: DataTypes.INTEGER,
       },
     },
-    userId: {
-      type: DataTypes.INTEGER,
-      references: {
-        model: User,
-        key: "id",
-      },
-    },
-  },
-  {
-    timestamps: true,
-  }
-);
+    { paranoid: true }
+  );
 
-export default Product;
+  return Product;
+};

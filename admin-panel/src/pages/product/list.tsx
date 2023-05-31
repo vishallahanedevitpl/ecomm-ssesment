@@ -1,13 +1,78 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Card, Collapse, Form, InputGroup } from "react-bootstrap";
+import DataTable from "react-data-table-component";
+import { useDispatch, useSelector } from "react-redux";
 import { Link } from "react-router-dom";
 import ProductFilters from "../../components/filters/productFilters";
+import { setError, setLoading } from "../../features/generalSlice";
+import { setProductList } from "../../features/productSlice";
 import AdminLayout from "../../layout/admin";
+import hitApi from "../../services/apiService";
 
 const ProductListPage = () => {
+  const dispatch = useDispatch();
+  //States
   const [open, setOpen] = useState(false);
+  const {
+    product: { productList },
+  } = useSelector((state: any) => state);
+
+  //API calls
+  const fetchProducts = async () => {
+    dispatch(setLoading(true));
+    const products = await hitApi("GET", "/product/getList");
+    if (products.status === "success") {
+      dispatch(setProductList(products.result));
+      console.log(products);
+
+      dispatch(setLoading(false));
+    } else {
+      dispatch(setError(products.message));
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  //Static data
+  //Data table columns
+  const columns = [
+    {
+      name: "Product",
+      selector: (row: any) => row.productName,
+      sortable: true,
+    },
+    {
+      name: "Category",
+      selector: (row: any) => row.productName,
+    },
+    {
+      name: "Actions",
+      cell: (row: any) => (
+        <>
+          <Link
+            to={`/category/sub-categories/${row.id}`}
+            className="btn btn-secondary btn-sm me-2"
+            title="View Sub Category List"
+          >
+            <i className="bi bi-list-nested" />
+          </Link>
+          {/* Access control check */}
+          <>
+            <button className="btn btn-danger btn-sm" title="Delete Category">
+              <i className="bi bi-trash" />
+            </button>
+          </>
+        </>
+      ),
+    },
+  ];
   return (
-    <AdminLayout>
+    <AdminLayout
+      pageTitle="Products"
+      breadcrumbs={[{ title: "Products", isActive: true }]}
+    >
       <section className="section profile">
         <div className="card">
           <div className="card-body pt-3">
@@ -27,19 +92,8 @@ const ProductListPage = () => {
                 </InputGroup>
               </form>
               <div>
-                <button
-                  className="btn btn-secondary btn-sm me-3"
-                  title="Apply filters"
-                  onClick={() => setOpen(!open)}
-                  aria-controls="example-collapse-text"
-                  aria-expanded={open}
-                >
-                  Filters
-                  <i className="bi bi-funnel"></i>
-                </button>
-
                 <Link
-                  to="/category/add"
+                  to="/product/add"
                   className="btn btn-primary btn-sm"
                   title="Add new Product"
                 >
@@ -47,48 +101,8 @@ const ProductListPage = () => {
                 </Link>
               </div>
             </div>
-            <div className="filter-container position-relative">
-              <Collapse in={open} dimension="height">
-                <div
-                  id="example-collapse-text"
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    right: 0,
-                    zIndex: 1000,
-                  }}
-                >
-                  <Card body style={{ width: "400px" }}>
-                    <ProductFilters />
-                  </Card>
-                </div>
-              </Collapse>
-            </div>
             <div className="row">
-              <div className="col-md-3">
-                <Card>
-                  <Card.Img variant="top" src="/images/profile-img.jpg" />
-                  <Card.Body>
-                    <Card.Title>Card Title</Card.Title>
-                    <div>
-                      <a
-                        href="#"
-                        className="btn btn-primary btn-sm me-2"
-                        title="Edit Category"
-                      >
-                        <i className="bi bi-pencil" />
-                      </a>
-                      <a
-                        href="#"
-                        className="btn btn-danger btn-sm"
-                        title="Delete Category"
-                      >
-                        <i className="bi bi-trash" />
-                      </a>
-                    </div>
-                  </Card.Body>
-                </Card>
-              </div>
+              <DataTable columns={columns} data={productList} />
             </div>
           </div>
         </div>

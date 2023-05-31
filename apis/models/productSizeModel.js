@@ -1,23 +1,17 @@
-import { DataTypes } from "sequelize";
-import sequelize from "../config/dbConfig";
-import Product from "./productModel";
-
-const ProductSize = sequelize.define(
-  "ProductSize",
-  {
-    productId: {
-      type: DataTypes.INTEGER,
-      references: {
-        model: Product,
-        key: "id",
+module.exports = (sequelize, DataTypes) => {
+  const ProductSize = sequelize.define(
+    "productSize",
+    {
+      productId: {
+        type: DataTypes.INTEGER,
+      },
+      size: {
+        type: DataTypes.STRING,
+        allowNull: false,
       },
     },
-    size: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-  },
-  { timestamps: true }
-);
+    { paranoid: true }
+  );
 
-export default ProductSize;
+  return ProductSize;
+};

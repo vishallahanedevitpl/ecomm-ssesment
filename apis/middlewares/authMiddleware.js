@@ -1,6 +1,12 @@
-import jwt from "jsonwebtoken";
-import User from "../models/userModel";
-import expressAsyncHandler from "express-async-handler";
+const jwt = require("jsonwebtoken");
+const expressAsyncHandler = require("express-async-handler");
+const db = require("../models");
+const {
+  getSingleUserDetailsByEmail,
+  sendResponse,
+  buildResponse,
+} = require("../services/commonService");
+const { FAILURE } = require("../costants/responseStatus");
 
 const protect = expressAsyncHandler(async (req, res, next) => {
   let token;
@@ -12,19 +18,30 @@ const protect = expressAsyncHandler(async (req, res, next) => {
       token = req.headers.authorization.split(" ")[1];
 
       const decode = jwt.verify(token, process.env.JWT_SECRET);
-
-      req.user = await User.findOne({ where: { id: decode.id } });
+      //fetch user details and move to next
+      const user = await getSingleUserDetailsByEmail(decode.email);
+      //If user is not found then send error message
+      if (!user) {
+        return buildResponse(res, FAILURE, "User not found");
+      }
+      req.user = user;
       next();
     } catch (error) {
-      res.status(401);
-      throw new Error("Unauthorized access");
+      return buildResponse(
+        res,
+        401,
+        "Unauthorized Access, Token expired. Please login"
+      );
     }
   }
 
   if (!token) {
-    res.status(401);
-    throw new Error("Unauthorized access");
+    return buildResponse(
+      res,
+      401,
+      "Unauthorized Access, Token expired. Please login"
+    );
   }
 });
 
-export default protect;
+module.exports = protect;

@@ -3,7 +3,10 @@ import AdminLayout from "../layout/admin";
 const DashboardPage = () => {
   return (
     <>
-      <AdminLayout>
+      <AdminLayout
+        pageTitle="Dashboard"
+        breadcrumbs={[{ title: "Dashboard", isActive: true }]}
+      >
         <section className="section dashboard">
           <div className="row">
             {/* Left side columns */}

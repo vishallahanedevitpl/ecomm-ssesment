@@ -1,23 +1,17 @@
-import { DataTypes } from "sequelize";
-import sequelize from "../config/dbConfig";
-import Product from "./productModel";
-
-const ProductColor = sequelize.define(
-  "ProductColor",
-  {
-    productId: {
-      type: DataTypes.INTEGER,
-      references: {
-        model: Product,
-        key: "id",
+module.exports = (sequelize, DataTypes) => {
+  const ProductColor = sequelize.define(
+    "productColor",
+    {
+      productId: {
+        type: DataTypes.INTEGER,
+      },
+      color: {
+        type: DataTypes.STRING,
+        allowNull: false,
       },
     },
-    color: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-  },
-  { timestamps: true }
-);
+    { paranoid: true }
+  );
 
-export default ProductColor;
+  return ProductColor;
+};

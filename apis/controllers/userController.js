@@ -1,118 +1,368 @@
-import expressAsyncHandler from "express-async-handler";
-import {
+const expressAsyncHandler = require("express-async-handler");
+const jwt = require("jsonwebtoken");
+const {
   sendAccountVerificationMail,
   sendPasswordResetLink,
-} from "../config/emailConfig";
-import { genrateToken } from "../config/generateToken";
-import { verifyEmailToken } from "../middlewares/emailVerification";
-import bcrypt from "bcrypt";
-import crypto from "crypto";
-import Token from "../models/tokenModel";
-import User from "../models/userModel";
-import multer from "multer";
-import { handleMultipartData } from "../config/storage";
+} = require("../config/emailConfig");
+const { genrateToken } = require("../config/generateToken");
+const bcrypt = require("bcrypt");
+const crypto = require("crypto");
+const { handleMultipartData } = require("../config/profilePicStorage");
+const db = require("../models");
+const {
+  getSingleUserDetailsByEmail,
+  buildResponse,
+} = require("../services/commonService");
+const fs = require("fs");
+const {
+  registrationFormValidator,
+  loginFormValidator,
+  emailVerificationValidator,
+  resetPasswordValidator,
+  userDetailsValidator,
+  changePassowrdValidator,
+} = require("../validations/userValidations");
+const { FAILURE, SUCCESS } = require("../costants/responseStatus");
 
-export const register = expressAsyncHandler(async (req, res) => {
-  const { name, email, password } = req.body;
-  const user = await User.create({ name, email, password });
-  sendAccountVerificationMail(email);
-  res.status(201).json({
-    id: user.id,
-    name: user.name,
-    profilePic: user.profilePic,
-    isSeller: user.isSeller,
-    isActive: user.isActive,
-    isAdmin: user.isAdmin,
-    isVerified: user.isVerified,
+//Table instances
+const User = db.users;
+const Token = db.tokens;
+const Role = db.roles;
+
+//function for User registration
+const register = expressAsyncHandler(async (req, res) => {
+  const { name, email, password, roleId } = req.body;
+
+  //Validate input data
+  await registrationFormValidator(req.body, (err, status) => {
+    if (!status) {
+      return buildResponse(res, FAILURE, "Validation failed", err.errors);
+    }
   });
+
+  //User Creation
+  const user = await User.create({ name, email, password, roleId });
+
+  //send account verification link through mail to newly registered user
+  sendAccountVerificationMail(email);
+
+  //Send response
+  return buildResponse(res, SUCCESS, "User Registered successfull", user);
 });
 
-export const login = expressAsyncHandler(async (req, res) => {
+//function for User authentication
+const login = expressAsyncHandler(async (req, res) => {
+  //Validate input data
+  await loginFormValidator(req.body, (err, status) => {
+    if (!status) {
+      return buildResponse(res, FAILURE, "Validation failed", err.errors);
+    }
+  });
+
+  //Destruct data
   const { email, password } = req.body;
-  const user = await User.findOne({ where: { email: email } });
-  if (user && (await user.validPassword(password))) {
-    res.status(200).json({
-      id: user.id,
-      name: user.name,
-      profilePic: user.profilePic,
-      isSeller: user.isSeller,
-      isActive: user.isActive,
-      isAdmin: user.isAdmin,
-      isVerified: user.isVerified,
-      accessToken: genrateToken(user.email),
-    });
-  } else {
-    res
-      .status(404)
-      .json({ message: "It seems that you have entered wrong credentials" });
-  }
-});
-
-export const verifyEmail = expressAsyncHandler(async (req, res) => {
-  const { token } = req.params;
-  const decode = await verifyEmailToken(token, res);
-});
-
-export const emailVerification = expressAsyncHandler(async (req, res) => {
-  const { email } = req.body;
-  await sendAccountVerificationMail(email);
-  res.status(200).json({ message: "Sent" });
-});
-
-export const passwordResetRequest = expressAsyncHandler(async (req, res) => {
-  const { email } = req.body;
-  const user = await User.findOne({ where: { email: email } });
+  //fetch user's details using email
+  const user = await getSingleUserDetailsByEmail(email, true);
+  //check for user existance
   if (!user) {
-    res.status(404).json({ message: "User not found" });
+    return buildResponse(res, FAILURE, "User not found");
   }
 
+  //check for is user verified or not
+  if (!user.isVerified) {
+    return buildResponse(res, FAILURE, "Account is not verified");
+  }
+
+  //compare passwords
+  if (user && (await user.validPassword(password))) {
+    const userSend = user.dataValues;
+    delete userSend.password;
+    userSend.accessToken = genrateToken(user.email);
+    return buildResponse(res, SUCCESS, "Login successfull", userSend);
+  } else {
+    return buildResponse(res, FAILURE, "Wrong Credentials");
+  }
+});
+//function for user verification
+const verifyEmail = expressAsyncHandler(async (req, res) => {
+  const { token } = req.params;
+
+  try {
+    //Verify Token
+    const decode = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await getSingleUserDetailsByEmail(decode.email);
+    if (!user) {
+      return buildResponse(res, FAILURE, "User not found");
+    }
+    //Update user status in DB
+    user.update({ isVerified: true });
+
+    return buildResponse(res, SUCCESS, "Email verified successfully");
+  } catch (error) {
+    return buildResponse(
+      res,
+      FAILURE,
+      "Verification link expired. Please try with new link"
+    );
+  }
+});
+
+//function for sending verification mail to user
+const emailVerification = expressAsyncHandler(async (req, res) => {
+  //Validate Input
+  await emailVerificationValidator(req.body, (err, status) => {
+    if (!status) {
+      return buildResponse(res, FAILURE, "Validation failed", err.errors);
+    }
+  });
+
+  //Destructing the data
+  const { email } = req.body;
+
+  //Check for user existance
+  const user = await getSingleUserDetailsByEmail(email);
+  if (!user) {
+    return buildResponse(res, FAILURE, "User not found");
+  }
+
+  await sendAccountVerificationMail(email);
+  return buildResponse(res, SUCCESS, "Verification link sent successfully");
+});
+
+//function for sending password reset link
+const passwordResetRequest = expressAsyncHandler(async (req, res) => {
+  //Validate Input
+  await emailVerificationValidator(req.body, (err, status) => {
+    if (!status) {
+      return buildResponse(res, FAILURE, "Validation failed", err.errors);
+    }
+  });
+  const { email } = req.body;
+  //Check for user existance
+  const user = await getSingleUserDetailsByEmail(email);
+  if (!user) {
+    return buildResponse(res, FAILURE, "User not found");
+  }
+  //Find for existing token and delete it to avoid conflicts
   const token = await Token.findOne({ where: { userId: user.id } });
   if (token) {
     await token.destroy();
   }
 
+  //Generate new token and save to DB
   const resetToken = crypto.randomBytes(32).toString("hex");
   const salt = await bcrypt.genSalt(10, "a");
   const hash = await bcrypt.hash(resetToken, salt);
 
   const newToken = await Token.create({ userId: user.id, token: hash });
 
-  const link = `http://localhost:3000/passwordReset?token=${resetToken}&id=${user.id}`;
-
-  sendPasswordResetLink(user.email, link);
-  res.status(200).json({ message: "Check your email for reset link" });
+  const link = `${process.env.CLIENT_URL}/passwordReset?token=${resetToken}&id=${user.id}`;
+  //Send reset link mail
+  await sendPasswordResetLink(user.email, link);
+  return buildResponse(res, SUCCESS, "Password link sent successfully");
 });
 
-export const resetPassword = expressAsyncHandler(async (req, res) => {
+//function for resetting password
+const resetPassword = expressAsyncHandler(async (req, res) => {
+  //Validate Input
+  await resetPasswordValidator(req.body, (err, status) => {
+    if (!status) {
+      return buildResponse(res, FAILURE, "Validation failed", err.errors);
+    }
+  });
   const { userId, token, password } = req.body;
 
-  const resetToken = await Token.findOne({ where: { userId: userId } });
+  //Check user existance
+  const user = await User.findByPk(userId);
+  if (!user) {
+    return buildResponse(res, FAILURE, "User not found, Please try again");
+  }
 
+  //Get Token for user
+  const resetToken = await Token.findOne({ where: { userId } });
   if (!resetToken) {
-    res.status(404).json({ message: "Token not found" });
+    return buildResponse(
+      res,
+      FAILURE,
+      "Password reset link not working please get new link"
+    );
   }
 
+  //campare saved token and token from request
   const isValid = await bcrypt.compare(token, resetToken.token);
-
   if (!isValid) {
-    res.status(404).json({ message: "Token not valid" });
+    return buildResponse(
+      res,
+      FAILURE,
+      "Password reset link not working please get new link"
+    );
   }
-  const user = await User.findOne({ where: { id: userId } });
+  //update user's password
   await user.update({ password: password });
 
+  //delete token's entry to avoid future conflicts
   await resetToken.destroy();
-  res.status(200).json({ message: "Password updated successfully" });
+  return buildResponse(res, SUCCESS, "Password updated successfully");
 });
 
-export const uploadProfilePic = expressAsyncHandler(async (req, res) => {
+//function for updating user's profile picture
+const updateUserProfilePic = expressAsyncHandler(async (req, res) => {
+  if (req.user.profilePic) {
+    fs.unlinkSync(`.${req.user.profilePic}`);
+  }
   handleMultipartData(req, res, async (err) => {
     if (err) {
-      res.json({ msgs: err.message });
+      return buildResponse(res, FAILURE, err.message);
     }
-
-    res.json({
-      body: req.body,
-      file: req.file,
+    const user = req.user;
+    //Update profile picture path in DB
+    await user.update({
+      profilePic: `/${req.file.path.replace(/\\/g, "/")}`,
     });
+    delete user.updatedAt;
+    return buildResponse(
+      res,
+      SUCCESS,
+      "User's profile pic updated successfully"
+    );
   });
 });
+
+//Function is for updating the profile details
+const updateUserProfileDetails = expressAsyncHandler(async (req, res) => {
+  // validate incoming data
+  await userDetailsValidator(req.body, (err, status) => {
+    if (!status) {
+      return buildResponse(res, FAILURE, "Validation failed", err.errors);
+    }
+  });
+
+  const { name, mobileNo, dob, gender, hobbies, isActive, roleId } = req.body;
+  const user = req.user;
+  try {
+    await user.update({
+      name,
+      mobileNo,
+      dob,
+      gender,
+      hobbies,
+      isActive,
+      roleId,
+    });
+
+    // const updatedUser = await getSingleUserDetailsByEmail(user.email);
+    return buildResponse(res, SUCCESS, "Profile updated successfully", user);
+  } catch (error) {
+    return buildResponse(res, FAILURE, "Profile details are not updated");
+  }
+});
+
+//function for updating password using existing password
+const changePassword = expressAsyncHandler(async (req, res) => {
+  try {
+    // validate incoming data
+    await changePassowrdValidator(req.body, (err, status) => {
+      if (!status) {
+        return buildResponse(res, FAILURE, "Validation failed", err.errors);
+      }
+    });
+    const { current, password } = req.body;
+    const user = req.user;
+    //confirm existing password is valid and update with new one
+    if (await user.validPassword(current)) {
+      await user.update({ password });
+      return buildResponse(res, SUCCESS, "Password changed successfully");
+    } else {
+      return buildResponse(
+        res,
+        FAILURE,
+        "Current password is not matched with password you entered"
+      );
+    }
+  } catch (error) {
+    return buildResponse(res, FAILURE, "Password not updated");
+  }
+});
+
+//function to get user list
+const listUsers = expressAsyncHandler(async (req, res) => {
+  try {
+    const users = await User.findAndCountAll({
+      attributes: {
+        exclude: ["password", "createdAt", "updatedAt", "deletedAt"],
+      },
+      include: {
+        model: Role,
+        foreignKey: "roleId",
+        attributes: { exclude: ["createdAt", "updatedAt", "deletedAt"] },
+      },
+    });
+    return buildResponse(res, SUCCESS, "User fetched", users);
+  } catch (error) {
+    return buildResponse(res, FAILURE, error.message);
+  }
+});
+
+//function to get user details
+const getSingleUser = expressAsyncHandler(async (req, res) => {
+  try {
+    //Check user existance
+    const user = await User.findByPk(req.params.id);
+    if (!user) {
+      return buildResponse(res, FAILURE, "User not found, Please try again");
+    }
+
+    return buildResponse(res, SUCCESS, "User found", user);
+  } catch (error) {
+    return buildResponse(res, FAILURE, error.message);
+  }
+});
+//Function to update user details from different user
+const updateUserProfileDetailsByAdmin = expressAsyncHandler(
+  async (req, res) => {
+    try {
+      // validate incoming data
+      await userDetailsValidator(req.body, (err, status) => {
+        if (!status) {
+          return buildResponse(res, FAILURE, "Validation failed", err.errors);
+        }
+      });
+
+      const { name, mobileNo, dob, gender, hobbies, isActive, roleId } =
+        req.body;
+      //Check user existance
+      const user = await User.findByPk(req.params.id);
+      if (!user) {
+        return buildResponse(res, FAILURE, "User not found, Please try again");
+      }
+      await user.update({
+        name,
+        mobileNo,
+        dob,
+        gender,
+        hobbies,
+        isActive,
+        roleId,
+      });
+
+      // const updatedUser = await getSingleUserDetailsByEmail(user.email);
+      return buildResponse(res, SUCCESS, "Profile updated successfully", user);
+    } catch (error) {
+      return buildResponse(res, FAILURE, "Profile details are not updated");
+    }
+  }
+);
+module.exports = {
+  emailVerification,
+  login,
+  passwordResetRequest,
+  register,
+  resetPassword,
+  updateUserProfileDetails,
+  updateUserProfilePic,
+  verifyEmail,
+  changePassword,
+  listUsers,
+  getSingleUser,
+  updateUserProfileDetailsByAdmin,
+};

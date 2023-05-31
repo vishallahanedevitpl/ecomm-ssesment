@@ -1,12 +1,12 @@
-import nodemailer from "nodemailer";
-import { genrateEmailVerifucationToken } from "./generateToken";
+const nodemailer = require("nodemailer");
+const { genrateEmailVerificationToken } = require("./generateToken");
 
-export const sendAccountVerificationMail = async (emailId) => {
-  const token = await genrateEmailVerifucationToken(emailId);
+const sendAccountVerificationMail = async (emailId) => {
+  const token = await genrateEmailVerificationToken(emailId);
 
   const transport = nodemailer.createTransport({
     host: process.env.EMAIL_HOST,
-    port: process.env.EMAIL_HOST,
+    port: process.env.EMAIL_PORT,
     auth: {
       user: process.env.EMAIL_AUTH_USER,
       pass: process.env.EMAIL_AUTH_PASSWORD,
@@ -26,7 +26,7 @@ export const sendAccountVerificationMail = async (emailId) => {
     text: `Hi! There, You have recently visited 
            our website and entered your email.
            Please follow the given link to verify your email
-           http://localhost:5000/user/verifyEmail/${token} 
+           ${process.env.SERVER_URL}/user/verifyEmail/${token} 
            Thanks`,
   };
   try {
@@ -40,7 +40,7 @@ export const sendAccountVerificationMail = async (emailId) => {
   }
 };
 
-export const sendPasswordResetLink = async (emailId, link) => {
+const sendPasswordResetLink = async (emailId, link) => {
   const transport = nodemailer.createTransport({
     host: process.env.EMAIL_HOST,
     port: process.env.EMAIL_HOST,
@@ -76,3 +76,5 @@ export const sendPasswordResetLink = async (emailId, link) => {
     throw new Error(error.message);
   }
 };
+
+module.exports = { sendAccountVerificationMail, sendPasswordResetLink };

@@ -1,42 +1,70 @@
-import { useState } from "react";
-import { Collapse } from "react-bootstrap";
-import { Link } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { setLoggedInUser } from "../../features/generalSlice";
+import SidebarMenu from "./SidebarMenu";
 
 const Sidebar = () => {
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const { pathname } = useLocation();
+  const { user } = useSelector((state: any) => state.general);
+
   return (
     <>
       <aside id="sidebar" className="sidebar">
         <ul className="sidebar-nav" id="sidebar-nav">
           <li className="nav-item">
-            <Link className="nav-link " to="/">
+            <Link
+              className={pathname === "/" ? "nav-link" : "nav-link collapsed"}
+              to="/"
+            >
               <i className="bi bi-grid" />
               <span>Dashboard</span>
             </Link>
           </li>
-          <li className="nav-item">
-            <Link className="nav-link collapsed" to="/product">
-              <i className="bi bi-box-seam"></i>
-              <span>Products</span>
-            </Link>
-          </li>
-          <li className="nav-item">
-            <Link className="nav-link collapsed" to="/category">
-              <i className="bi bi-diagram-2"></i>
-              <span>Categories</span>
-            </Link>
-          </li>
-          <li className="nav-item">
-            <Link className="nav-link collapsed" to="/profile">
-              <i className="bi bi-person"></i>
-              <span>Profile</span>
-            </Link>
-          </li>
-          <li className="nav-item">
-            <a className="nav-link collapsed" href="index.html">
-              <i className="bi bi-box-arrow-in-right"></i>
-              <span>Logout</span>
-            </a>
-          </li>
+
+          <SidebarMenu
+            title="Products"
+            to="/product"
+            iconClass="bi bi-box-seam"
+          />
+
+          <SidebarMenu
+            title="Categories"
+            to="/category"
+            iconClass="bi bi-diagram-2"
+          />
+          {/* Access control check */}
+          {user.role.permissions.includes("USER_LIST") && (
+            <SidebarMenu title="Users" to="/users" iconClass="bi bi-people" />
+          )}
+
+          {/* Access control check */}
+          {user.role.permissions.includes("ROLE_LIST") && (
+            <SidebarMenu
+              title="Roles and Permissions"
+              to="#"
+              iconClass="bi bi-award"
+              isDropDown={true}
+              dropDownItems={[
+                { title: "Roles", to: "/roles" },
+                { title: "Permissions", to: "/permissions" },
+              ]}
+            />
+          )}
+
+          <SidebarMenu title="Profile" to="/profile" iconClass="bi bi-person" />
+
+          <SidebarMenu
+            title="Logout"
+            to="#"
+            iconClass="bi bi-box-arrow-in-right"
+            onClick={() => {
+              localStorage.removeItem("user");
+              dispatch(setLoggedInUser(null));
+              navigate("/login");
+            }}
+          />
         </ul>
       </aside>
     </>

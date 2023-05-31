@@ -1,7 +1,55 @@
-import React from "react";
-import { Link } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import * as Yup from "yup";
+import { Formik, Form, Field } from "formik";
+import { registrationForm } from "../models/forms";
+import { useSelector } from "react-redux";
+import AlertMessage from "../components/common/AlertMessage";
+import { useDispatch } from "react-redux/es/exports";
+import {
+  setError,
+  setLoading,
+  setLoggedInUser,
+} from "../features/generalSlice";
+import hitApi from "../services/apiService";
 
 const LoginPage = () => {
+  const navigate = useNavigate();
+
+  const dispatch = useDispatch();
+
+  const { isLoading, isError, user } = useSelector(
+    (state: any) => state.general
+  );
+  //Form validation Schema
+  const LoginFormSchema = Yup.object().shape({
+    email: Yup.string().email("Invalid email").required("Email is required"),
+    password: Yup.string().required("Password is required"),
+  });
+
+  const loginUser = async (formData: registrationForm) => {
+    dispatch(setLoading(true));
+    const data = await hitApi("POST", "/user/login", formData);
+
+    if (data.status !== 200) {
+      dispatch(setError(data.message));
+      return;
+    }
+    if (!data.result.role.permissions.includes("ADMIN_PANEL_ACCESS")) {
+      dispatch(setError("You are not allowed to login here"));
+      return;
+    }
+    localStorage.setItem("user", JSON.stringify(data.result));
+    dispatch(setLoggedInUser(data.result));
+    navigate("/");
+  };
+
+  useEffect(() => {
+    if (user) {
+      navigate(-1);
+    }
+  }, []);
+
   return (
     <>
       <main>
@@ -15,7 +63,6 @@ const LoginPage = () => {
                       href="index.html"
                       className="logo d-flex align-items-center w-auto"
                     >
-                      <img src="assets/img/logo.png" alt="" />
                       <span className="d-none d-lg-block">E-Comm</span>
                     </a>
                   </div>
@@ -29,54 +76,58 @@ const LoginPage = () => {
                         <p className="text-center small">
                           Enter your username & password to login
                         </p>
+                        {isError && <AlertMessage />}
                       </div>
-                      <form className="row g-3 needs-validation" noValidate>
-                        <div className="col-12">
-                          <label htmlFor="yourEmail" className="form-label">
-                            Your Email
-                          </label>
-                          <input
-                            type="email"
-                            name="email"
-                            className="form-control"
-                            id="yourEmail"
-                            required
-                          />
-                          <div className="invalid-feedback">
-                            Please enter a valid Email adddress!
-                          </div>
-                        </div>
-
-                        <div className="col-12">
-                          <label htmlFor="yourPassword" className="form-label">
-                            Password
-                          </label>
-                          <input
-                            type="password"
-                            name="password"
-                            className="form-control"
-                            id="yourPassword"
-                            required
-                          />
-                          <div className="invalid-feedback">
-                            Please enter your password!
-                          </div>
-                        </div>
-                        <div className="col-12">
-                          <button
-                            className="btn btn-primary w-100"
-                            type="submit"
-                          >
-                            Create Account
-                          </button>
-                        </div>
-                        <div className="col-12">
-                          <p className="small mb-0">
-                            Don't have account?
-                            <Link to="/register">Create an account</Link>
-                          </p>
-                        </div>
-                      </form>
+                      <Formik
+                        initialValues={{ email: "", password: "" }}
+                        validationSchema={LoginFormSchema}
+                        onSubmit={(values, { resetForm }) => {
+                          loginUser(values);
+                          resetForm();
+                        }}
+                      >
+                        {({ errors, touched }) => (
+                          <Form className="row g-3">
+                            <div className="col-12">
+                              <label className="form-label">Email</label>
+                              <Field name="email" className="form-control" />
+                              {errors.email && touched.email ? (
+                                <div className="invalid-feedback d-block">
+                                  {errors.email}
+                                </div>
+                              ) : null}
+                            </div>
+                            <div className="col-12">
+                              <label className="form-label">Password</label>
+                              <Field
+                                type="password"
+                                name="password"
+                                className="form-control"
+                              />
+                              {errors.password && touched.password ? (
+                                <div className="invalid-feedback d-block">
+                                  {errors.password}
+                                </div>
+                              ) : null}
+                            </div>
+                            <div className="col-12">
+                              <button
+                                className="btn btn-primary w-100"
+                                type="submit"
+                                disabled={isLoading}
+                              >
+                                {isLoading ? "Loading…" : "Login"}
+                              </button>
+                            </div>
+                            <div className="col-12">
+                              <p className="small mb-0">
+                                Don't have account?
+                                <Link to="/register">Create an account</Link>
+                              </p>
+                            </div>
+                          </Form>
+                        )}
+                      </Formik>
                     </div>
                   </div>
                 </div>
